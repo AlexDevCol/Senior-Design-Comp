@@ -145,6 +145,10 @@ struct Motor {
     digitalWrite(dir1Pin, dirState1);
     digitalWrite(dir2Pin, dirState2);
     analogWrite(speedPin, abs(duty));
+    
+    // Debug motor states
+    Serial.printf("%s: Duty=%d, Dir1=%d, Dir2=%d, SpeedPin=%d\n", 
+                  name, duty, dirState1, dirState2, speedPin);
   }
 };
 
@@ -173,6 +177,10 @@ void setup() {
   Serial.println("CQI 2026 Robot Started");
   Serial.println("WiFi: NEM_CONNECT, Password: 1234");
   Serial.println("NFC Reader initialized");
+  
+  // Test motors on startup
+  Serial.println("Testing motors...");
+  testMotors();
 }
 
 void loop() {
@@ -325,5 +333,49 @@ String findMaterialType(String serialNumber) {
     }
   }
   return ""; // Not found
+}
+
+// Function to test motors
+void testMotors() {
+  Serial.println("=== MOTOR TEST ===");
+  
+  // Test left motor forward
+  Serial.println("Testing Left Motor Forward...");
+  motorL.duty = 100;
+  motorL.update();
+  delay(1000);
+  
+  // Test left motor backward
+  Serial.println("Testing Left Motor Backward...");
+  motorL.duty = -100;
+  motorL.update();
+  delay(1000);
+  
+  // Stop left motor
+  Serial.println("Stopping Left Motor...");
+  motorL.duty = 0;
+  motorL.update();
+  delay(500);
+  
+  // Test right motor forward
+  Serial.println("Testing Right Motor Forward...");
+  motorR.duty = 100;
+  motorR.update();
+  delay(1000);
+  
+  // Test right motor backward
+  Serial.println("Testing Right Motor Backward...");
+  motorR.duty = -100;
+  motorR.update();
+  delay(1000);
+  
+  // Stop both motors
+  Serial.println("Stopping both motors...");
+  motorL.duty = 0;
+  motorR.duty = 0;
+  motorL.update();
+  motorR.update();
+  
+  Serial.println("=== MOTOR TEST COMPLETE ===");
 }
 
