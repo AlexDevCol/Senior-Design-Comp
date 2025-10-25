@@ -7,6 +7,8 @@
 #define REMOTEXY_MODE__WIFI_POINT
 #include <ESP8266WiFi.h>
 #include <RemoteXY.h>
+#include <SPI.h>
+#include <MFRC522.h>
 
 // RemoteXY connection settings
 #define REMOTEXY_WIFI_SSID "RobotWiFi"
@@ -41,6 +43,52 @@ struct {
 #define IR_L 13  // D7
 #define IR_R 15  // D8
 
+// NFC Reader pins
+#define RST_PIN 16  // D0
+#define SS_PIN 1    // D10 (TX)
+
+// NFC Dictionary structure
+struct NFCEntry {
+  const char* serialNumber;
+  const char* materialType;
+};
+
+// NFC Dictionary - mapping serial numbers to material types
+const NFCEntry nfcDictionary[] = {
+  {"04:D3:B6:C5:35:02:89", "Wood"},
+  {"04:73:83:BA:35:02:89", "Wood"},
+  {"04:93:CF:BF:35:02:89", "Wood"},
+  {"04:A3:F3:26:34:02:89", "Wood"},
+  {"04:B3:9C:81:36:02:89", "Wood"},
+  {"04:23:A4:26:34:02:89", "Metal"},
+  {"04:93:85:BA:35:02:89", "Metal"},
+  {"04:43:78:49:36:02:89", "Metal"},
+  {"04:53:C5:BC:35:02:89", "Metal"},
+  {"04:E3:BC:BD:35:02:89", "Metal"},
+  {"04:B3:6D:56:36:02:89", "Waste"},
+  {"04:B3:0F:C2:35:02:89", "Waste"},
+  {"04:33:D5:2B:34:02:89", "Waste"},
+  {"04:03:7F:9F:35:02:89", "Waste"},
+  {"04:A3:8D:0A:35:02:89", "Waste"},
+  {"04:B3:95:C8:35:02:89", "Electronics"},
+  {"04:73:32:BE:35:02:89", "Electronics"},
+  {"04:F3:69:2E:34:02:89", "Electronics"},
+  {"04:03:F9:26:34:02:89", "Electronics"},
+  {"04:73:78:B8:35:02:89", "Electronics"},
+  {"04:93:EF:C6:35:02:89", "Hazardous Waste"},
+  {"04:13:F7:B4:35:02:89", "Hazardous Waste"},
+  {"04:93:1F:3B:34:02:89", "Hazardous Waste"},
+  {"04:53:AC:29:34:02:89", "Hazardous Waste"},
+  {"04:A3:8D:29:34:02:89", "Hazardous Waste"},
+  {"04:53:F2:33:34:02:89", "Hazardous Containers"},
+  {"04:03:50:2F:34:02:89", "Hazardous Containers"}
+};
+
+const int nfcDictionarySize = sizeof(nfcDictionary) / sizeof(nfcDictionary[0]);
+
+// MFRC522 instance
+MFRC522 mfrc522(SS_PIN, RST_PIN);
+
 // System states
 enum RobotState {
   AUTONOMOUS,
@@ -51,6 +99,12 @@ enum RobotState {
 RobotState currentState = AUTONOMOUS;
 unsigned long lastStateChange = 0;
 bool manualOverride = false;
+
+// NFC variables
+unsigned long lastNFCCheck = 0;
+const unsigned long NFC_CHECK_INTERVAL = 500; // Check every 500ms
+String lastDetectedMaterial = "";
+String lastDetectedSerial = "";
 
 // Motor control structure
 struct Motor {
@@ -108,12 +162,20 @@ void setup() {
   pinMode(IR_L, INPUT);
   pinMode(IR_R, INPUT);
   
+  // Initialize NFC reader
+  SPI.begin();
+  mfrc522.PCD_Init();
+  
   Serial.println("CQI 2026 Robot Started");
   Serial.println("WiFi: RobotWiFi, Password: robot123");
+  Serial.println("NFC Reader initialized");
 }
 
 void loop() {
   RemoteXY_Handler();
+  
+  // Check for NFC tags periodically
+  checkForNFCTag();
   
   // Check for manual override (button press or slider movement)
   if (RemoteXY.slider_01 != 0 || RemoteXY.slider_02 != 0) {
@@ -142,26 +204,26 @@ void runAutonomousMode() {
   uint16_t ir_l = digitalRead(IR_L);
   uint16_t ir_r = digitalRead(IR_R);
   
-  // Line following logic
-  if ((ir_l == LOW) && (ir_r == LOW)) {
+  // Line following logic - sensors output LOW on black, HIGH on white
+  if ((ir_l == HIGH) && (ir_r == HIGH)) {
     // Both sensors on white - go forward
     motorL.duty = 150;
     motorR.duty = 150;
     Serial.println("Forward");
     
-  } else if ((ir_l == HIGH) && (ir_r == HIGH)) {
+  } else if ((ir_l == LOW) && (ir_r == LOW)) {
     // Both sensors on black - stop
     motorL.duty = 0;
     motorR.duty = 0;
     Serial.println("Stop");
     
-  } else if (ir_l == LOW) {
+  } else if (ir_l == HIGH) {
     // Left sensor on white, right on line - turn right
     motorL.duty = 150;
     motorR.duty = -100;
     Serial.println("Turn Right");
     
-  } else if (ir_r == LOW) {
+  } else if (ir_r == HIGH) {
     // Right sensor on white, left on line - turn left
     motorL.duty = -100;
     motorR.duty = 150;
@@ -188,5 +250,76 @@ void runRemoteControlMode() {
   
   // Update status string
   RemoteXY.strings_01 = 1; // Indicate remote control mode
+}
+
+// Function to check for NFC tags and identify materials
+void checkForNFCTag() {
+  // Only check every NFC_CHECK_INTERVAL milliseconds
+  if (millis() - lastNFCCheck < NFC_CHECK_INTERVAL) {
+    return;
+  }
+  lastNFCCheck = millis();
+  
+  // Look for new cards
+  if (!mfrc522.PICC_IsNewCardPresent()) {
+    return;
+  }
+  
+  // Select one of the cards
+  if (!mfrc522.PICC_ReadCardSerial()) {
+    return;
+  }
+  
+  // Convert UID to string format
+  String serialNumber = "";
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
+    if (mfrc522.uid.uidByte[i] < 0x10) {
+      serialNumber += "0";
+    }
+    serialNumber += String(mfrc522.uid.uidByte[i], HEX);
+    if (i < mfrc522.uid.size - 1) {
+      serialNumber += ":";
+    }
+  }
+  serialNumber.toUpperCase();
+  
+  // Check if this is a new detection
+  if (serialNumber != lastDetectedSerial) {
+    lastDetectedSerial = serialNumber;
+    
+    // Find material type in dictionary
+    String materialType = findMaterialType(serialNumber);
+    
+    if (materialType != "") {
+      lastDetectedMaterial = materialType;
+      Serial.println("=== NFC TAG DETECTED ===");
+      Serial.print("Serial Number: ");
+      Serial.println(serialNumber);
+      Serial.print("Material Type: ");
+      Serial.println(materialType);
+      Serial.println("========================");
+    } else {
+      Serial.println("=== UNKNOWN NFC TAG ===");
+      Serial.print("Serial Number: ");
+      Serial.println(serialNumber);
+      Serial.println("Material not recognized");
+      Serial.println("========================");
+    }
+  }
+  
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
+}
+
+// Function to find material type from serial number
+String findMaterialType(String serialNumber) {
+  for (int i = 0; i < nfcDictionarySize; i++) {
+    if (serialNumber.equals(nfcDictionary[i].serialNumber)) {
+      return String(nfcDictionary[i].materialType);
+    }
+  }
+  return ""; // Not found
 }
 
