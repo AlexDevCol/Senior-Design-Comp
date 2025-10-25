@@ -124,15 +124,13 @@ struct Motor {
 };
 
 
-//Servo servo1;
-//Servo servo2;
+Servo servo1;
 
 
 // Motor name = {name, speedPin, dir1Pin, dir2Pin, duty}
 Motor motorL = {"L",  12, 14, 2};
-Motor motorR = {"R",  5,  4,  0};
-// int servo1Pin = 13;
-// int servo2Pin = 10;
+Motor motorR = {"R",  4,  5,  0};
+int servo1Pin = 15;
 
 
 void setup()
@@ -161,7 +159,7 @@ void setup()
     Serial.println(WiFi.status());
   }
   
-  //servo1.attach(servo1Pin);
+  servo1.attach(servo1Pin);
   //servo2.attach(servo2Pin);
 }
 
@@ -201,6 +199,8 @@ void loop()
   motorR.update();
 
   // Servo control using slider_03 (0 to 100)
-  //int servoAngle = map(RemoteXY.slider_03, 0, 100, 0, 180);
-  //servo1.write(servoAngle);
+  int servoAngle = map(RemoteXY.slider_03, 0, 100, 0, 180);
+  Serial.print("Servo Angle: ");
+  Serial.println(servoAngle);
+  servo1.write(servoAngle);
 }

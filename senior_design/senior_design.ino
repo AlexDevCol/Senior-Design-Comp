@@ -81,6 +81,8 @@ struct {
 //           END RemoteXY include          //
 /////////////////////////////////////////////
 
+// IR sensor pin
+#define IR_SENSOR 13  // D7
 
 struct Motor {
   const char* name;
@@ -144,6 +146,9 @@ void setup()
   motorL.begin();
   motorR.begin();
   
+  // Initialize IR sensor
+  pinMode(IR_SENSOR, INPUT);
+  
   // Wait for WiFi connection
   Serial.println("Waiting for WiFi connection...");
   delay(3000);
@@ -189,10 +194,21 @@ void loop()
     motorL.duty = map(RemoteXY.slider_01, slider_llimit, slider_ulimit, -speedLimit, speedLimit);
     motorR.duty = map(RemoteXY.slider_02, slider_llimit, slider_ulimit, -speedLimit, speedLimit);
   } else {
-    // Auto mode
-    // TODO: Implement automatic control logic
-    motorL.duty = 0;
-    motorR.duty = 0;
+    // Auto mode - Line following with IR sensor
+    uint16_t ir_sensor = digitalRead(IR_SENSOR);
+    
+    // IR sensor: LOW = white surface, HIGH = black line
+    if (ir_sensor == HIGH) {
+      // On black line - go forward
+      motorL.duty = 150;
+      motorR.duty = 150;
+      Serial.println("Auto: Forward - On Black");
+    } else {
+      // On white - stop to find line
+      motorL.duty = 0;
+      motorR.duty = 0;
+      Serial.println("Auto: Stop - On White");
+    }
   }
   
   motorL.update();
