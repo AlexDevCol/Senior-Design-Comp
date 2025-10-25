@@ -81,10 +81,6 @@ struct {
 //           END RemoteXY include          //
 /////////////////////////////////////////////
 
-// IR sensor pins
-#define IR_L 13  // D7
-#define IR_R 15  // D8
-
 
 struct Motor {
   const char* name;
@@ -150,10 +146,6 @@ void setup()
   motorL.begin();
   motorR.begin();
   
-  // Initialize IR sensors
-  pinMode(IR_L, INPUT);
-  pinMode(IR_R, INPUT);
-  
   // Wait for WiFi connection
   Serial.println("Waiting for WiFi connection...");
   delay(3000);
@@ -199,32 +191,10 @@ void loop()
     motorL.duty = map(RemoteXY.slider_01, slider_llimit, slider_ulimit, -speedLimit, speedLimit);
     motorR.duty = map(RemoteXY.slider_02, slider_llimit, slider_ulimit, -speedLimit, speedLimit);
   } else {
-    // Auto mode - Line following with IR sensors
-    uint16_t ir_l = digitalRead(IR_L);
-    uint16_t ir_r = digitalRead(IR_R);
-    
-    // Line following logic - sensors output LOW on black, HIGH on white
-    if ((ir_l == HIGH) && (ir_r == HIGH)) {
-      // Both sensors on white - go forward
-      motorL.duty = 150;
-      motorR.duty = 150;
-      Serial.println("Forward");
-    } else if ((ir_l == LOW) && (ir_r == LOW)) {
-      // Both sensors on black - stop
-      motorL.duty = 0;
-      motorR.duty = 0;
-      Serial.println("Stop");
-    } else if (ir_l == HIGH) {
-      // Left sensor on white, right on line - turn right
-      motorL.duty = 150;
-      motorR.duty = -100;
-      Serial.println("Turn Right");
-    } else if (ir_r == HIGH) {
-      // Right sensor on white, left on line - turn left
-      motorL.duty = -100;
-      motorR.duty = 150;
-      Serial.println("Turn Left");
-    }
+    // Auto mode
+    // TODO: Implement automatic control logic
+    motorL.duty = 0;
+    motorR.duty = 0;
   }
   
   motorL.update();
