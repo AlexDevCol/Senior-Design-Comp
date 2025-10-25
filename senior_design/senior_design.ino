@@ -5,14 +5,18 @@
 
 // RemoteXY include library
 #define REMOTEXY_MODE__WIFI_POINT
+
+// you can enable debug logging to Serial at 115200
+//#define REMOTEXY__DEBUGLOG    
+
 #include <ESP8266WiFi.h>
 #include <RemoteXY.h>
 #include <SPI.h>
 #include <MFRC522.h>
 
 // RemoteXY connection settings
-#define REMOTEXY_WIFI_SSID "RobotWiFi"
-#define REMOTEXY_WIFI_PASSWORD "robot123"
+#define REMOTEXY_WIFI_SSID "NEM_CONNECT"
+#define REMOTEXY_WIFI_PASSWORD "1234"
 #define REMOTEXY_SERVER_PORT 6377
 
 // RemoteXY GUI configuration  
@@ -167,7 +171,7 @@ void setup() {
   mfrc522.PCD_Init();
   
   Serial.println("CQI 2026 Robot Started");
-  Serial.println("WiFi: RobotWiFi, Password: robot123");
+  Serial.println("WiFi: NEM_CONNECT, Password: 1234");
   Serial.println("NFC Reader initialized");
 }
 
